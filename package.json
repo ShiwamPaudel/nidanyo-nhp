@@ -13,6 +13,7 @@
     "db:migrate": "tsx db/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx db/seed.ts",
+    "db:bootstrap": "tsx db/bootstrap-lab.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

@@ -15,11 +15,11 @@ import { createClient } from "@libsql/client";
  *   npx tsx db/backdate-imported-patients.ts --dry
  *   npx tsx db/backdate-imported-patients.ts --date=2026-07-01
  *
- * Only touches rows tagged created_by = 'import:old_patients_data_bgp', so
+ * Only touches rows tagged created_by = 'import:old_patients_data', so
  * genuinely new registrations are never affected.
  */
 
-const TAG = "import:old_patients_data_bgp";
+const TAG = "import:old_patients_data";
 const DRY = process.argv.includes("--dry");
 const dateArg = process.argv.find((a) => a.startsWith("--date="))?.split("=")[1] ?? "2026-07-01";
 

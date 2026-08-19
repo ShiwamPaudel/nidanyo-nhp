@@ -5,6 +5,12 @@
 > System (LIMS) for a diagnostic lab in Nepal, by Infobytes Nepal.
 > **Golden rule: do not disrupt existing data or flows. Prefer additive, low-risk
 > changes. New behaviour that changes existing flows must be opt-in (default off).**
+>
+> **This checkout is the National Health Pathology Center Pvt. Ltd. (NHP) deployment**
+> (`DATABASE_URL` → `nidanyofornhp`). Nidanyo runs one database per clinic; a sibling
+> checkout serves a different clinic. Nothing clinic-specific may be hardcoded — the
+> lab name, logo, report/bill headers, signatories, tests, prices and reference ranges
+> all come from the database and are edited by the lab admin under Settings.
 
 Keep this file up to date whenever you make a meaningful change.
 
@@ -22,6 +28,15 @@ Keep this file up to date whenever you make a meaningful change.
   run them casually; generate the SQL and let a human apply it on deploy.
 - **Seed:** `db/seed.ts` only INSERTS rows that don't exist (idempotent, no updates).
   So **seed does NOT re-sync existing roles/permissions on prod** (see RBAC note).
+  ⚠️ `db/seed.ts` is the **demo/dev** seed — it plants a demo test catalogue, demo
+  `*@nidanyo.local` staff and demo referring doctors. **Never run it on a live lab.**
+- **New live lab:** `npm run db:migrate` then `npm run db:bootstrap`
+  (`db/bootstrap-lab.ts`, `--dry` to preview). Seeds only the cross-lab reference
+  data — 8 roles, 19 departments, 10 sample types, 6 payment modes, counters —
+  plus the lab row, its settings and the admin user. Tests, prices, reference
+  ranges, headers, logo, signatories, doctors and staff stay empty and are
+  configured from Settings. Driven by `SEED_LAB_NAME` / `SEED_LAB_CODE` /
+  `SEED_ADMIN_*` / `SEED_SHORT_LINK_BASE_URL` in `.env.local`. Idempotent.
 - Scripts: `dev`, `build`, `typecheck` (`tsc --noEmit`), `lint`, `db:*`.
 - Platform is Windows; shell is PowerShell (Bash tool also available).
 

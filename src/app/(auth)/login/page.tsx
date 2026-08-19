@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Phone } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getLoginBranding } from "@/lib/queries/lab";
 import { Logo } from "@/components/brand/logo";
 import { LoginForm } from "./login-form";
 
@@ -9,6 +10,7 @@ export const metadata = { title: "Sign in" };
 export default async function LoginPage() {
   const user = await getCurrentUser();
   if (user) redirect("/dashboard");
+  const { labName, logoUrl } = await getLoginBranding();
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -80,12 +82,16 @@ export default async function LoginPage() {
           <div className="mb-8 lg:hidden">
             <Logo size="lg" showTagline />
           </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/bgplogo.png"
-            alt="Buddhi Ganesh Pathology"
-            className="mb-6 w-full rounded-2xl object-cover shadow-sm ring-1 ring-black/5"
-          />
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoUrl}
+              alt={labName ?? "Laboratory"}
+              className="mb-6 w-full rounded-2xl object-cover shadow-sm ring-1 ring-black/5"
+            />
+          ) : labName ? (
+            <p className="mb-6 text-center text-lg font-semibold text-brand-700">{labName}</p>
+          ) : null}
           <div className="space-y-1.5">
             <h2 className="text-2xl font-bold tracking-tight">Sign in</h2>
             <p className="text-sm text-muted-foreground">

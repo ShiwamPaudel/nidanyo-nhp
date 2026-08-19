@@ -21,7 +21,7 @@ import { formatCode } from "../src/lib/utils";
  * patients get codes ABOVE every imported code (no future collisions).
  */
 
-const CSV_PATH = process.argv.find((a) => a.endsWith(".csv")) || "old_patients_data_bgp.csv";
+const CSV_PATH = process.argv.find((a) => a.endsWith(".csv")) || "old_patients_data.csv";
 const DRY = process.argv.includes("--dry");
 const BATCH = 400;
 
@@ -94,7 +94,7 @@ async function main() {
       ageUnit: "years" as const,
       phone,
       isActive: true,
-      createdBy: "import:old_patients_data_bgp",
+      createdBy: "import:old_patients_data",
     };
   });
 

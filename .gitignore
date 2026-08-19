@@ -41,3 +41,6 @@ yarn-error.log*
 
 # drizzle
 /drizzle/meta
+
+# sqlite database files (local + any reference copy) — never commit
+/*.db

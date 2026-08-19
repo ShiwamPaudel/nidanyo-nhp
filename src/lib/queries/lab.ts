@@ -31,3 +31,15 @@ export async function getLabAsset(labId: string, kind: string) {
 export async function getAssetById(id: string) {
   return (await db.select().from(labAssets).where(eq(labAssets.id, id))).at(0) ?? null;
 }
+
+/**
+ * Branding shown on the pre-auth login screen. There is no session (and so no
+ * labId) at that point, so this resolves the single active lab and its
+ * admin-uploaded logo. Returns nulls when the lab has not uploaded one yet.
+ */
+export const getLoginBranding = cache(async () => {
+  const lab = (await db.select().from(labs).where(eq(labs.isActive, true)).limit(1)).at(0);
+  if (!lab) return { labName: null as string | null, logoUrl: null as string | null };
+  const logo = await getLabAsset(lab.id, "logo");
+  return { labName: lab.name, logoUrl: logo?.url ?? null };
+});
