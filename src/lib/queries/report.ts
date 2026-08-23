@@ -17,6 +17,7 @@ import {
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { getLab, getLabAsset } from "@/lib/queries/lab";
 import { compareEntries, type OrderableEntry } from "@/lib/report-order";
+import { pickReportSignatories } from "@/lib/report-signatories";
 
 /**
  * Full data needed to render a final report (approved results only — a visit
@@ -95,12 +96,14 @@ export async function getReportData(labId: string, visitId: string, onlyEntryIds
   entries.sort((a, b) => compareEntries(orderKey(a), orderKey(b)));
 
   // Report signatories — admin-managed, shown at the end of the report,
-  // independent of who approved the results.
-  const signatories = await db
+  // independent of who approved the results. Staff-specific blocks are narrowed
+  // to whoever registered this visit; see `pickReportSignatories`.
+  const signatoryRows = await db
     .select()
     .from(reportSignatories)
     .where(and(eq(reportSignatories.labId, labId), eq(reportSignatories.isActive, true)))
     .orderBy(asc(reportSignatories.displayOrder), asc(reportSignatories.createdAt));
+  const signatories = pickReportSignatories(signatoryRows, visit.createdBy);
 
   const { lab, settings } = await getLab(labId);
   const [headerAsset, footerAsset] = await Promise.all([
@@ -118,7 +121,7 @@ export async function getReportData(labId: string, visitId: string, onlyEntryIds
     settings,
     headerUrl: headerAsset?.url ?? null,
     footerUrl: footerAsset?.url ?? null,
-    signatories: signatories.map((s) => ({ id: s.id, name: s.name, description: s.description, url: s.url })),
+    signatories,
     link,
     dispatches,
     entries: entries.map((e) => ({

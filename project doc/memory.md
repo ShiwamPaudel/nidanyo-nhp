@@ -65,6 +65,14 @@ Keep this file up to date whenever you make a meaningful change.
   `result_values`, approved entries drive the report.
 - Reports: `report_links` (public tokenized link, `isActive`, view counts),
   `report_dispatches`, `report_signatories` (admin-managed signature blocks at report end).
+- **Which signatures print** — `src/lib/report-signatories.ts` (`pickReportSignatories`),
+  called once inside `getReportData`, so the in-lab print and the patient's public
+  link can never sign differently. A `report_signatories` row with `user_id` set is
+  **staff-specific**: it prints only when `visits.createdBy` matches, and is emitted
+  FIRST so it lands on the left. Rows with `user_id` null are **lab-wide** (the
+  pathologist) and print on every report, to the right. If a lab links nobody, every
+  active block prints — the pre-existing behaviour. No match (reception registered the
+  visit, or a legacy null `createdBy`) → no staff signature rather than a wrong one.
 
 ## Key areas / file map
 

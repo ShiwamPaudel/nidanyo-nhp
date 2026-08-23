@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getReportData } from "@/lib/queries/report";
 import { reportUrl } from "@/lib/report-engine";
 import { qrDataUrl } from "@/lib/qr";
+import { barcodeDataUrl } from "@/lib/barcode";
 import { formatMoney } from "@/lib/utils";
 import { type ReportEntry } from "@/components/print/report-sheet";
 import { ReportPrintView } from "./report-print-view";
@@ -58,7 +59,12 @@ export default async function ReportPrintPage({
   }
 
   const publicUrl = data.link ? await reportUrl(data.link.token, user.labId) : null;
-  const qr = publicUrl ? await qrDataUrl(publicUrl, 120) : "";
+  const [qr, idBarcode] = await Promise.all([
+    publicUrl ? qrDataUrl(publicUrl, 120) : Promise.resolve(""),
+    // Same Code 128 symbology as the sample labels, so one handheld scanner
+    // reads a tube and a printed report alike.
+    barcodeDataUrl(data.patient!.code, { height: 7, scale: 2 }),
+  ]);
 
   return (
     <ReportPrintView
@@ -72,6 +78,7 @@ export default async function ReportPrintPage({
       visit={{ code: data.visit.code, referredBy: data.visit.referredBy, visitDate: data.visit.visitDate }}
       entries={data.entries as unknown as ReportEntry[]}
       signatories={data.signatories}
+      idBarcodeUrl={idBarcode}
       qrDataUrl={qr}
       publicUrl={publicUrl}
       cal={(data.settings?.calendarSystem as "AD" | "BS") ?? "AD"}

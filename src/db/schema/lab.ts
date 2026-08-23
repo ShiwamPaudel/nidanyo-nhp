@@ -90,6 +90,12 @@ export const labAssets = sqliteTable(
  * report (last page), independent of who approved the results. Each has an
  * uploaded signature image plus a name and description (designation). Multiple
  * signatories render side by side, ordered by displayOrder.
+ *
+ * `userId` makes a block **staff-specific**: it is printed only on reports for
+ * visits that staff member registered, so a lab with several technicians shows
+ * the one who actually handled the visit rather than all of them. Blocks with
+ * no `userId` are lab-wide and print on every report (the pathologist).
+ * See `pickReportSignatories` in `src/lib/report-signatories.ts`.
  */
 export const reportSignatories = sqliteTable(
   "report_signatories",
@@ -98,6 +104,9 @@ export const reportSignatories = sqliteTable(
     labId: text("lab_id")
       .notNull()
       .references(() => labs.id),
+    // -> users.id. Deliberately not a FK: a signature block must survive the
+    // staff account being removed (it then simply stops matching any visit).
+    userId: text("user_id"),
     name: text("name").notNull(),
     description: text("description"), // designation / qualification line
     storageKey: text("storage_key").notNull(), // storage adapter key
@@ -110,6 +119,7 @@ export const reportSignatories = sqliteTable(
   },
   (t) => ({
     labIdx: index("report_signatories_lab_idx").on(t.labId),
+    labUserIdx: index("report_signatories_lab_user_idx").on(t.labId, t.userId),
   }),
 );
 

@@ -155,11 +155,11 @@ export function ReportPrintView(props: ReportSheetProps) {
       >
         <div className="rpt-header">{showHeader && <PrintHeader headerUrl={props.headerUrl} lab={props.lab} />}</div>
         <div className="rpt-footer">
-          <div className="rpt-pageno" style={{ textAlign: "center", fontSize: 9, fontStyle: "italic", color: "#647067", marginBottom: "1mm" }} />
+          <div className="rpt-pageno" style={{ textAlign: "center", fontSize: 10, fontStyle: "italic", color: "#647067", marginBottom: "1mm" }} />
           {showFooter && <PrintFooter footerUrl={props.footerUrl} lab={props.lab} />}
         </div>
         <div className="rpt-content">
-          <ReportBody cal={props.cal} patient={props.patient} visit={props.visit} entries={props.entries} signatories={props.signatories} qrDataUrl={props.qrDataUrl} publicUrl={props.publicUrl} />
+          <ReportBody cal={props.cal} patient={props.patient} visit={props.visit} entries={props.entries} signatories={props.signatories} idBarcodeUrl={props.idBarcodeUrl} qrDataUrl={props.qrDataUrl} publicUrl={props.publicUrl} />
         </div>
       </div>
 

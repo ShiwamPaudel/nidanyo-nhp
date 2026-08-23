@@ -66,6 +66,13 @@ export interface ReportSheetProps {
   entries: ReportEntry[];
   /** Admin-managed signatories rendered at the end of the report (last page). */
   signatories?: ReportSignatory[];
+  /**
+   * Code 128 barcode of the patient ID (PNG data URL), shown top-right of the
+   * report — the same symbology the sample labels carry, so one scanner pulls
+   * up the patient from either a tube or a printed report. Generated server-side
+   * (`@/lib/barcode` is server-only) and passed in, like `qrDataUrl`.
+   */
+  idBarcodeUrl?: string;
   qrDataUrl?: string;
   publicUrl?: string | null;
   watermark?: string;
@@ -92,6 +99,7 @@ export function ReportSheet({
   visit,
   entries,
   signatories = [],
+  idBarcodeUrl,
   qrDataUrl,
   publicUrl,
   watermark,
@@ -139,7 +147,7 @@ export function ReportSheet({
         <tbody>
           <tr>
             <td style={{ padding: `3mm ${marginXMm}mm` }}>
-              <ReportBody cal={cal} patient={patient} visit={visit} entries={entries} signatories={signatories} qrDataUrl={qrDataUrl} publicUrl={publicUrl} pendingNote={pendingNote} />
+              <ReportBody cal={cal} patient={patient} visit={visit} entries={entries} signatories={signatories} idBarcodeUrl={idBarcodeUrl} qrDataUrl={qrDataUrl} publicUrl={publicUrl} pendingNote={pendingNote} />
             </td>
           </tr>
         </tbody>
@@ -148,7 +156,7 @@ export function ReportSheet({
   );
 }
 
-export type ReportBodyProps = Pick<ReportSheetProps, "cal" | "patient" | "visit" | "entries" | "qrDataUrl" | "publicUrl" | "pendingNote"> & {
+export type ReportBodyProps = Pick<ReportSheetProps, "cal" | "patient" | "visit" | "entries" | "idBarcodeUrl" | "qrDataUrl" | "publicUrl" | "pendingNote"> & {
   signatories?: ReportSignatory[];
 };
 
@@ -157,7 +165,7 @@ export type ReportBodyProps = Pick<ReportSheetProps, "cal" | "patient" | "visit"
  * and footer). Shared by the table-based ReportSheet and the paged.js print
  * view so both render identical content.
  */
-export function ReportBody({ cal, patient, visit, entries, signatories = [], qrDataUrl, publicUrl, pendingNote }: ReportBodyProps) {
+export function ReportBody({ cal, patient, visit, entries, signatories = [], idBarcodeUrl, qrDataUrl, publicUrl, pendingNote }: ReportBodyProps) {
   // Group entries by department for clean sectioning.
   const byDept = new Map<string, ReportEntry[]>();
   for (const e of entries) {
@@ -174,12 +182,24 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], qrD
 
   return (
     <>
-      <div className="mt-2 text-center">
-        <h2 className="inline-block rounded bg-brand-50 px-4 py-0.5 text-[12px] font-bold uppercase tracking-wider text-brand-700">Laboratory Report</h2>
+      {/*
+        Title row. The patient-ID barcode sits at the top-right; an equal-width
+        spacer on the left keeps "Laboratory Report" optically centred whether or
+        not a barcode was generated.
+      */}
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <div className="w-[45mm] shrink-0" aria-hidden />
+        <h2 className="inline-block rounded bg-brand-50 px-4 py-0.5 text-[13px] font-bold uppercase tracking-wider text-brand-700">Laboratory Report</h2>
+        <div className="w-[45mm] shrink-0">
+          {idBarcodeUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={idBarcodeUrl} alt={patient.code} className="ml-auto block h-[13mm] w-full object-contain object-right" />
+          )}
+        </div>
       </div>
 
       {/* Patient + meta */}
-      <div className="mt-3 grid grid-cols-2 gap-3 border-y border-[#0E1B14]/12 py-2 text-[11px]">
+      <div className="mt-3 grid grid-cols-2 gap-3 border-y border-[#0E1B14]/12 py-2 text-[12px]">
         <div className="space-y-0.5">
           <Line label="Patient" value={patient.fullName} bold />
           <Line label="Patient ID" value={patient.code} />
@@ -207,8 +227,8 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], qrD
         // department taller than a full page still has to break — nothing can
         // fit it otherwise.)
         <div key={dept} className="mt-4 break-inside-avoid">
-          <p className="mb-1 bg-[#F1F5F2] px-2 py-1 text-[13px] font-extrabold uppercase tracking-wide text-brand-700">{dept}</p>
-          <table className="w-full border-collapse text-[11px]">
+          <p className="mb-1 bg-[#F1F5F2] px-2 py-1 text-[14px] font-extrabold uppercase tracking-wide text-brand-700">{dept}</p>
+          <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr className="border-b border-[#0E1B14]/15 text-left text-[#647067]">
                 <th className="w-[38%] py-1">Investigation</th>
@@ -223,7 +243,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], qrD
                   {/* Profile/panel heading — the tests below belong to it. */}
                   {sec.groupName && (
                     <tr className="break-inside-avoid">
-                      <td colSpan={4} className="pt-2.5 text-[11.5px] font-bold text-brand-700">{sec.groupName}</td>
+                      <td colSpan={4} className="pt-2.5 text-[12.5px] font-bold text-brand-700">{sec.groupName}</td>
                     </tr>
                   )}
                   {sec.items.map((e) => {
@@ -242,7 +262,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], qrD
                         ) : (
                           <>
                             <tr className="break-inside-avoid">
-                              <td colSpan={4} className={`pt-1.5 text-[11px] font-semibold underline${inGroup ? " pl-3" : ""}`}>
+                              <td colSpan={4} className={`pt-1.5 text-[12px] font-semibold underline${inGroup ? " pl-3" : ""}`}>
                                 {e.entry.testName}
                               </td>
                             </tr>
@@ -251,7 +271,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], qrD
                             ))}
                             {e.method && (
                               <tr>
-                                <td colSpan={4} className={`pb-1 text-[9.5px] italic text-[#647067]${inGroup ? " pl-3" : ""}`}>Method: {e.method}</td>
+                                <td colSpan={4} className={`pb-1 text-[10.5px] italic text-[#647067]${inGroup ? " pl-3" : ""}`}>Method: {e.method}</td>
                               </tr>
                             )}
                           </>
@@ -269,7 +289,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], qrD
               not pooled at the end of the report. A blank-line gap separates
               notes when more than one test in the department has one. */}
           {list.some((e) => e.note && e.note.trim()) && (
-            <div className="mt-1.5 text-[9.5px] italic leading-snug text-[#647067]">
+            <div className="mt-1.5 text-[10.5px] italic leading-snug text-[#647067]">
               {list
                 .filter((e) => e.note && e.note.trim())
                 .map((e, idx) => (
@@ -285,7 +305,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], qrD
 
       {/* Interpretation */}
       {interpretations.length > 0 && (
-        <div className="mt-4 break-inside-avoid rounded border border-[#DFE2E2] bg-[#F8FAF8] p-2 text-[11px]">
+        <div className="mt-4 break-inside-avoid rounded border border-[#DFE2E2] bg-[#F8FAF8] p-2 text-[12px]">
           <p className="mb-1 font-semibold text-brand-700">Interpretation / Comments</p>
           {interpretations.map((i, idx) => (
             <p key={idx} className="mb-0.5"><span className="font-medium">{i.test}: </span>{i.text}</p>
@@ -295,19 +315,19 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], qrD
 
       {/* Partial report — some tests on this visit are still in the lab. */}
       {pendingNote && (
-        <div className="mt-4 break-inside-avoid rounded border border-amber-300 bg-amber-50 p-2 text-[10.5px] text-[#7a4b00]">
+        <div className="mt-4 break-inside-avoid rounded border border-amber-300 bg-amber-50 p-2 text-[11.5px] text-[#7a4b00]">
           <span className="font-semibold">Interim report · </span>
           {pendingNote}
         </div>
       )}
 
-      <p className="mt-3 text-center text-[9px] italic text-[#647067]">
+      <p className="mt-3 text-center text-[10px] italic text-[#647067]">
         ** End of report ** · Flags: L Low · H High · LL/HH Critical. Please correlate clinically.
       </p>
 
       {/* Verification QR */}
       {qrDataUrl && (
-        <div className="mt-6 break-inside-avoid text-[10px]">
+        <div className="mt-6 break-inside-avoid text-[11px]">
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={qrDataUrl} alt="Verify" className="size-16" />
@@ -319,16 +339,26 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], qrD
         </div>
       )}
 
-      {/* Admin-managed signatories — a single horizontal row, evenly spaced. */}
+      {/*
+        Admin-managed signatories — a single horizontal row. Which blocks appear
+        is decided server-side by `pickReportSignatories`: the staff-specific one
+        (the technician who registered the visit) comes first, the lab-wide one
+        (pathologist) after. Two blocks are pushed to opposite edges so they read
+        as "performed by | approved by"; three or more space out evenly.
+      */}
       {signatories.length > 0 && (
-        <div className="mt-8 flex items-end justify-around gap-6 break-inside-avoid">
+        <div
+          className={`mt-8 flex items-end gap-6 break-inside-avoid ${
+            signatories.length <= 2 ? "justify-between px-4" : "justify-around"
+          }`}
+        >
           {signatories.map((s) => (
-            <div key={s.id} className="text-center text-[11px]">
+            <div key={s.id} className="text-center text-[12px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={s.url} alt="" className="mx-auto mb-1 h-12 object-contain" />
               <div className="border-t border-[#0E1B14] px-6 pt-1">
                 <p className="font-semibold">{s.name}</p>
-                {s.description && <p className="text-[10px] text-[#647067]">{s.description}</p>}
+                {s.description && <p className="whitespace-pre-line text-[11px] text-[#647067]">{s.description}</p>}
               </div>
             </div>
           ))}
@@ -390,14 +420,14 @@ function ValueRow({
       <td className={`py-1 align-top${pad}`}>
         {label}
         {method && (
-          <span className="block text-[9.5px] italic text-[#647067]">Method: {method}</span>
+          <span className="block text-[10.5px] italic text-[#647067]">Method: {method}</span>
         )}
       </td>
       <td
         className="py-1 align-top font-semibold tabular"
         style={{ color: critical ? "#FF3131" : abnormal ? "#B45309" : "#0E1B14" }}
       >
-        {v.valueText ?? "—"} {abnormal && <span className="text-[9px]">{flagSymbol(flag)}</span>}
+        {v.valueText ?? "—"} {abnormal && <span className="text-[10px]">{flagSymbol(flag)}</span>}
       </td>
       <td className="py-1 align-top text-[#475467]">{v.unit ?? ""}</td>
       <td className="whitespace-pre-line py-1 align-top text-[#475467]">{v.refText ?? ""}</td>

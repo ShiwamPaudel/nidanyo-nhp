@@ -3,6 +3,7 @@ import { Clock, CreditCard, Unlink, ShieldCheck, Hourglass } from "lucide-react"
 import { resolvePublicReport, logReportAccess } from "@/lib/queries/public-report";
 import { reportUrl } from "@/lib/report-engine";
 import { qrDataUrl } from "@/lib/qr";
+import { barcodeDataUrl } from "@/lib/barcode";
 import { Logo } from "@/components/brand/logo";
 import { ReportSheet, type ReportEntry } from "@/components/print/report-sheet";
 import { PrintToolbar } from "@/components/print/print-sheet";
@@ -35,7 +36,10 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
   const data = state.data;
   if (state.linkId) await logReportAccess(state.linkId, "view", { ip, userAgent: ua });
   const publicUrl = data.link ? await reportUrl(data.link.token, data.lab?.id) : null;
-  const qr = publicUrl ? await qrDataUrl(publicUrl, 120) : "";
+  const [qr, idBarcode] = await Promise.all([
+    publicUrl ? qrDataUrl(publicUrl, 120) : Promise.resolve(""),
+    barcodeDataUrl(data.patient!.code, { height: 7, scale: 2 }),
+  ]);
 
   const { approved, total, pending, pendingTests } = state.progress;
   const isPartial = pending > 0;
@@ -77,6 +81,7 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
           visit={{ code: data.visit.code, referredBy: data.visit.referredBy, visitDate: data.visit.visitDate }}
           entries={data.entries as unknown as ReportEntry[]}
           signatories={data.signatories}
+          idBarcodeUrl={idBarcode}
           qrDataUrl={qr}
           publicUrl={publicUrl}
           pendingNote={pendingNote}
