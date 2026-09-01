@@ -39,6 +39,7 @@ export async function saveTest(input: TestInput & { id?: string }): Promise<Acti
           unit: d.unit || null,
           description: d.description || null,
           resultType: isMulti ? "multi" : d.resultType,
+          selectOptions: !isMulti && d.resultType === "select" ? d.selectOptions : null,
           refLow: d.refLow ?? null,
           refHigh: d.refHigh ?? null,
           refRangeText: d.refRangeText || null,
@@ -68,6 +69,7 @@ export async function saveTest(input: TestInput & { id?: string }): Promise<Acti
         method: d.method || null,
         unit: d.unit || null,
         resultType: isMulti ? "multi" : d.resultType,
+        selectOptions: !isMulti && d.resultType === "select" ? d.selectOptions : null,
         refLow: d.refLow ?? null,
         refHigh: d.refHigh ?? null,
         refRangeText: d.refRangeText || null,
@@ -92,6 +94,7 @@ async function insertParams(testId: string, params: TestInput["parameters"]) {
       name: p.name,
       unit: p.unit || null,
       resultType: p.resultType,
+      selectOptions: p.resultType === "select" ? p.selectOptions : null,
       refLow: p.refLow ?? null,
       refHigh: p.refHigh ?? null,
       refRangeText: p.refRangeText || null,
@@ -165,6 +168,7 @@ export async function loadTestForEdit(id: string): Promise<ActionResult<TestInpu
       unit: test.unit,
       description: test.description,
       resultType: test.resultType,
+      selectOptions: test.selectOptions,
       refLow: test.refLow,
       refHigh: test.refHigh,
       refRangeText: test.refRangeText,
@@ -173,7 +177,7 @@ export async function loadTestForEdit(id: string): Promise<ActionResult<TestInpu
       tatHours: test.tatHours,
       parameters: params
         .sort((a, b) => a.displayOrder - b.displayOrder)
-        .map((p) => ({ id: p.id, name: p.name, unit: p.unit, resultType: p.resultType, refLow: p.refLow, refHigh: p.refHigh, refRangeText: p.refRangeText, criticalLow: p.criticalLow, criticalHigh: p.criticalHigh })),
+        .map((p) => ({ id: p.id, name: p.name, unit: p.unit, resultType: p.resultType, selectOptions: p.selectOptions, refLow: p.refLow, refHigh: p.refHigh, refRangeText: p.refRangeText, criticalLow: p.criticalLow, criticalHigh: p.criticalHigh })),
     } as TestInput & { id: string });
   });
 }

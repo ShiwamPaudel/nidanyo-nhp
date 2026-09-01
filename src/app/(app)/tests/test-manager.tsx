@@ -24,6 +24,7 @@ const blank = (): TestInput & { id?: string } => ({
   unit: null,
   description: null,
   resultType: "numeric",
+  selectOptions: null,
   refLow: null,
   refHigh: null,
   refRangeText: null,
@@ -81,6 +82,28 @@ export function ToggleTestButton({ testId, active }: { testId: string; active: b
   );
 }
 
+/** Dropdown choices are edited as one comma-separated line. */
+const optionsToText = (o: string[] | null | undefined) => (o ?? []).join(", ");
+const textToOptions = (t: string) => {
+  const parts = t.split(",").map((x) => x.trim()).filter(Boolean);
+  return parts.length ? parts : null;
+};
+
+/**
+ * Numeric bounds are meaningless on a text / dropdown / positive-negative
+ * result, and dropdown choices are meaningless on anything else. Clearing them
+ * on switch keeps a parameter from carrying settings its type cannot use — and
+ * stops a stale "5 – 10" from printing as the reference range of a colour.
+ */
+function paramTypePatch(next: Param["resultType"]): Partial<Param> {
+  if (next === "numeric") return { resultType: next, selectOptions: null };
+  const cleared = { refLow: null, refHigh: null, criticalLow: null, criticalHigh: null };
+  // Leave existing choices alone when staying on / moving to a dropdown.
+  return next === "select"
+    ? { resultType: next, ...cleared }
+    : { resultType: next, selectOptions: null, ...cleared };
+}
+
 function TestFormModal({ departments, sampleTypes, initial, onClose }: { departments: Option[]; sampleTypes: Option[]; initial: TestInput & { id?: string }; onClose: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -89,7 +112,7 @@ function TestFormModal({ departments, sampleTypes, initial, onClose }: { departm
   const multi = (form.parameters?.length ?? 0) > 0;
 
   function addParam() {
-    set("parameters", [...(form.parameters ?? []), { name: "", unit: null, resultType: "numeric", refLow: null, refHigh: null, refRangeText: null, criticalLow: null, criticalHigh: null }] as Param[]);
+    set("parameters", [...(form.parameters ?? []), { name: "", unit: null, resultType: "numeric", selectOptions: null, refLow: null, refHigh: null, refRangeText: null, criticalLow: null, criticalHigh: null }] as Param[]);
   }
   function updateParam(i: number, patch: Partial<Param>) {
     const next = [...(form.parameters ?? [])];
@@ -171,7 +194,12 @@ function TestFormModal({ departments, sampleTypes, initial, onClose }: { departm
           <div className="rounded-lg border border-border bg-surface p-3">
             <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Single-value reference (used when no parameters added)</p>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Result type"><Select value={form.resultType} onChange={(e) => set("resultType", e.target.value as TestInput["resultType"])}><option value="numeric">Numeric</option><option value="text">Text</option><option value="pos_neg">Positive/Negative</option></Select></Field>
+              <Field label="Result type"><Select value={form.resultType} onChange={(e) => set("resultType", e.target.value as TestInput["resultType"])}><option value="numeric">Numeric</option><option value="text">Text</option><option value="select">Dropdown</option><option value="pos_neg">Positive/Negative</option></Select></Field>
+              {form.resultType === "select" && (
+                <Field label="Choices" hint="Separate with commas — this is the dropdown the technician picks from">
+                  <Input value={optionsToText(form.selectOptions)} onChange={(e) => set("selectOptions", textToOptions(e.target.value))} placeholder="e.g. Reactive, Non-reactive" />
+                </Field>
+              )}
               <Field label="Unit"><Input value={form.unit ?? ""} onChange={(e) => set("unit", e.target.value || null)} /></Field>
               <Field label="Critical high"><Input type="number" value={num(form.criticalHigh)} onChange={(e) => set("criticalHigh", e.target.value === "" ? null : Number(e.target.value))} /></Field>
               <Field label="Ref low"><Input type="number" value={num(form.refLow)} onChange={(e) => setRefBound("refLow", e.target.value === "" ? null : Number(e.target.value))} /></Field>
@@ -190,13 +218,46 @@ function TestFormModal({ departments, sampleTypes, initial, onClose }: { departm
           {multi ? (
             <div className="space-y-2">
               {form.parameters!.map((p, i) => (
+                // Every row is labelled, because rows no longer share a layout:
+                // a numeric parameter shows ranges, a dropdown shows its choices.
                 <div key={i} className="grid grid-cols-12 items-end gap-2 rounded-lg border border-border p-2">
-                  <div className="col-span-12 sm:col-span-3"><Field label={i === 0 ? "Name" : undefined}><Input value={p.name} onChange={(e) => updateParam(i, { name: e.target.value })} placeholder="e.g. Hemoglobin" className="h-9" /></Field></div>
-                  <div className="col-span-3 sm:col-span-1"><Field label={i === 0 ? "Unit" : undefined}><Input value={p.unit ?? ""} onChange={(e) => updateParam(i, { unit: e.target.value || null })} className="h-9" /></Field></div>
-                  <div className="col-span-3 sm:col-span-1"><Field label={i === 0 ? "Low" : undefined}><Input type="number" value={num(p.refLow)} onChange={(e) => setParamRefBound(i, "refLow", e.target.value === "" ? null : Number(e.target.value))} className="h-9" /></Field></div>
-                  <div className="col-span-3 sm:col-span-1"><Field label={i === 0 ? "High" : undefined}><Input type="number" value={num(p.refHigh)} onChange={(e) => setParamRefBound(i, "refHigh", e.target.value === "" ? null : Number(e.target.value))} className="h-9" /></Field></div>
-                  <div className="col-span-9 sm:col-span-3"><Field label={i === 0 ? "Reference range" : undefined}><Textarea rows={1} value={p.refRangeText ?? ""} onChange={(e) => updateParam(i, { refRangeText: e.target.value || null })} placeholder={autoRange(p.refLow, p.refHigh) || "e.g. 40 – 80"} className="min-h-9 resize-y py-1.5 leading-tight" /></Field></div>
-                  <div className="col-span-2 sm:col-span-2"><Field label={i === 0 ? "Crit. high" : undefined}><Input type="number" value={num(p.criticalHigh)} onChange={(e) => updateParam(i, { criticalHigh: e.target.value === "" ? null : Number(e.target.value) })} className="h-9" /></Field></div>
+                  <div className="col-span-12 sm:col-span-3"><Field label="Name"><Input value={p.name} onChange={(e) => updateParam(i, { name: e.target.value })} placeholder="e.g. Hemoglobin" className="h-9" /></Field></div>
+                  <div className="col-span-6 sm:col-span-2">
+                    <Field label="Result type">
+                      <Select value={p.resultType} onChange={(e) => updateParam(i, paramTypePatch(e.target.value as Param["resultType"]))} className="h-9">
+                        <option value="numeric">Numeric</option>
+                        <option value="text">Text</option>
+                        <option value="select">Dropdown</option>
+                        <option value="pos_neg">Positive/Negative</option>
+                      </Select>
+                    </Field>
+                  </div>
+
+                  {p.resultType === "numeric" && (
+                    <>
+                      <div className="col-span-6 sm:col-span-1"><Field label="Unit"><Input value={p.unit ?? ""} onChange={(e) => updateParam(i, { unit: e.target.value || null })} className="h-9" /></Field></div>
+                      <div className="col-span-4 sm:col-span-1"><Field label="Low"><Input type="number" value={num(p.refLow)} onChange={(e) => setParamRefBound(i, "refLow", e.target.value === "" ? null : Number(e.target.value))} className="h-9" /></Field></div>
+                      <div className="col-span-4 sm:col-span-1"><Field label="High"><Input type="number" value={num(p.refHigh)} onChange={(e) => setParamRefBound(i, "refHigh", e.target.value === "" ? null : Number(e.target.value))} className="h-9" /></Field></div>
+                      <div className="col-span-4 sm:col-span-1"><Field label="Crit. high"><Input type="number" value={num(p.criticalHigh)} onChange={(e) => updateParam(i, { criticalHigh: e.target.value === "" ? null : Number(e.target.value) })} className="h-9" /></Field></div>
+                      <div className="col-span-11 sm:col-span-2"><Field label="Reference range"><Textarea rows={1} value={p.refRangeText ?? ""} onChange={(e) => updateParam(i, { refRangeText: e.target.value || null })} placeholder={autoRange(p.refLow, p.refHigh) || "e.g. 40 – 80"} className="min-h-9 resize-y py-1.5 leading-tight" /></Field></div>
+                    </>
+                  )}
+
+                  {p.resultType === "select" && (
+                    <>
+                      <div className="col-span-12 sm:col-span-4">
+                        <Field label="Choices" hint="Separate with commas — this is the dropdown the technician picks from">
+                          <Input value={optionsToText(p.selectOptions)} onChange={(e) => updateParam(i, { selectOptions: textToOptions(e.target.value) })} placeholder="e.g. Pale yellow, Yellow, Amber, Red" className="h-9" />
+                        </Field>
+                      </div>
+                      <div className="col-span-11 sm:col-span-2"><Field label="Reference range"><Textarea rows={1} value={p.refRangeText ?? ""} onChange={(e) => updateParam(i, { refRangeText: e.target.value || null })} placeholder="e.g. Pale yellow" className="min-h-9 resize-y py-1.5 leading-tight" /></Field></div>
+                    </>
+                  )}
+
+                  {(p.resultType === "text" || p.resultType === "pos_neg") && (
+                    <div className="col-span-11 sm:col-span-6"><Field label="Reference range"><Textarea rows={1} value={p.refRangeText ?? ""} onChange={(e) => updateParam(i, { refRangeText: e.target.value || null })} placeholder={p.resultType === "pos_neg" ? "e.g. Negative" : "e.g. Clear"} className="min-h-9 resize-y py-1.5 leading-tight" /></Field></div>
+                  )}
+
                   <div className="col-span-1"><Button variant="ghost" size="icon-sm" onClick={() => removeParam(i)} className="text-destructive" aria-label="Remove"><Trash2 className="size-4" /></Button></div>
                 </div>
               ))}
