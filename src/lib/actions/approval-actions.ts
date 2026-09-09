@@ -3,19 +3,57 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { resultEntries, resultApprovals, visitTests, visits, bills, reportLinks } from "@/db/schema";
+import { resultEntries, resultApprovals, visitTests, visits, bills, reportLinks, reportSignatories } from "@/db/schema";
 import { authorize } from "@/lib/auth/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { ActionResult, ok, fail, run } from "@/lib/action";
 import { audit, activity } from "@/lib/audit";
 import { activateReportLinkIfReady } from "@/lib/report-engine";
+import { MAX_REPORT_SIGNATORIES } from "@/lib/report-signatories";
 
-/** Approve all submitted results for a visit, applying the pathologist's signature. */
-export async function approveVisit(input: { visitId: string; interpretation?: string | null }): Promise<ActionResult<{ released: boolean }>> {
+/**
+ * Approve all submitted results for a visit under the signatures the approver
+ * picked.
+ *
+ * The chosen `report_signatories` are stored on the VISIT, because a report
+ * carries one signature row no matter how many approval rounds produced it. A
+ * visit approved in batches (a culture landing days after the CBC) therefore
+ * prints whatever the most recent approver selected, and the patient's live
+ * link shows the same — the report and the online copy can never disagree.
+ * Each round is still recorded individually in `result_approvals.signatoryIds`.
+ */
+export async function approveVisit(input: {
+  visitId: string;
+  interpretation?: string | null;
+  signatoryIds: string[];
+}): Promise<ActionResult<{ released: boolean }>> {
   return run(async () => {
     const user = await authorize(PERMISSIONS.APPROVAL_ACT);
     const visit = (await db.select().from(visits).where(and(eq(visits.id, input.visitId), eq(visits.labId, user.labId)))).at(0);
     if (!visit) return fail("Visit not found.");
+
+    // Selection is mandatory: an unsigned report must not be reachable, even by
+    // a caller that skips the UI.
+    const wanted = [...new Set((input.signatoryIds ?? []).filter(Boolean))];
+    if (wanted.length === 0) return fail("Select at least one signature before approving.");
+    if (wanted.length > MAX_REPORT_SIGNATORIES) {
+      return fail(`A report can carry at most ${MAX_REPORT_SIGNATORIES} signatures.`);
+    }
+    const valid = await db
+      .select({ id: reportSignatories.id })
+      .from(reportSignatories)
+      .where(
+        and(
+          eq(reportSignatories.labId, user.labId),
+          eq(reportSignatories.isActive, true),
+          inArray(reportSignatories.id, wanted),
+        ),
+      );
+    if (valid.length !== wanted.length) {
+      return fail("One of the chosen signatures is no longer available. Reload and pick again.");
+    }
+    // Keep the order the approver picked — it is the print order, left to right.
+    const signatoryIds = wanted;
 
     const submitted = await db
       .select()
@@ -45,8 +83,12 @@ export async function approveVisit(input: { visitId: string; interpretation?: st
         actorId: user.id,
         actorName: user.name,
         actorDesignation: user.designation ?? null,
+        signatoryIds,
       });
     }
+
+    // The report's signature row — latest approval wins (see the note above).
+    await db.update(visits).set({ reportSignatoryIds: signatoryIds }).where(eq(visits.id, input.visitId));
 
     // If every result entry on the visit is now approved, mark the visit approved.
     const remaining = await db

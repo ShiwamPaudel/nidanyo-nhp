@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/db/client";
-import { resultEntries, resultValues, visits, patients, bills } from "@/db/schema";
+import { resultEntries, resultValues, visits, patients, bills, reportSignatories } from "@/db/schema";
 import { and, asc, desc, eq, inArray, like, or, sql, ne } from "drizzle-orm";
 
 /** Visits that have submitted results awaiting approval. */
@@ -57,4 +57,22 @@ export async function getVisitForApproval(labId: string, visitId: string) {
     bill,
     entries: entries.map((e) => ({ entry: e, values: valuesByEntry.get(e.id) ?? [] })),
   };
+}
+
+/**
+ * The signature blocks an approver may apply, in configured order. Every active
+ * signatory in the lab is offered — the choice is made per approval now, not by
+ * who registered the visit.
+ */
+export async function listSignatoriesForApproval(labId: string) {
+  return db
+    .select({
+      id: reportSignatories.id,
+      name: reportSignatories.name,
+      description: reportSignatories.description,
+      url: reportSignatories.url,
+    })
+    .from(reportSignatories)
+    .where(and(eq(reportSignatories.labId, labId), eq(reportSignatories.isActive, true)))
+    .orderBy(asc(reportSignatories.displayOrder), asc(reportSignatories.createdAt));
 }

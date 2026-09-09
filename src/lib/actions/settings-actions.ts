@@ -97,9 +97,8 @@ export async function removeLabAsset(id: string): Promise<ActionResult> {
  * the end of reports). Accepts an optional image file — required when creating,
  * kept as-is on update when omitted.
  *
- * `userId` (optional) ties the block to a staff account, so it prints only on
- * reports for visits that person registered. Left blank the block is lab-wide
- * and prints on every report — see `src/lib/report-signatories.ts`.
+ * Which of these a report carries is decided by the approver at approval time
+ * (see `approveVisit`), so every active block is simply offered there.
  */
 export async function saveReportSignatory(formData: FormData): Promise<ActionResult> {
   return run(async () => {
@@ -107,12 +106,15 @@ export async function saveReportSignatory(formData: FormData): Promise<ActionRes
     const id = (formData.get("id") as string) || null;
     const name = String(formData.get("name") || "").trim();
     const description = String(formData.get("description") || "").trim() || null;
-    const userId = String(formData.get("userId") || "").trim() || null;
     const file = formData.get("file") as File | null;
     if (name.length < 2) return fail("Please enter the signatory's name.", { name: "Name is required" });
 
-    // A staff link must point at an active account in THIS lab — otherwise the
-    // block would silently never match a visit.
+    // `userId` is the retired staff-link, kept only so reports approved before
+    // signatures were chosen at approval still resolve the way they did then.
+    // The editor no longer sends the field, and an absent field must LEAVE IT
+    // ALONE — clearing it would silently rewrite an old report's signature row.
+    const rawUserId = formData.get("userId");
+    const userId = rawUserId === null ? undefined : String(rawUserId).trim() || null;
     if (userId) {
       const staff = (
         await db.select({ id: users.id }).from(users).where(and(eq(users.id, userId), eq(users.labId, user.labId)))
@@ -137,7 +139,7 @@ export async function saveReportSignatory(formData: FormData): Promise<ActionRes
         .set({
           name,
           description,
-          userId,
+          ...(userId === undefined ? {} : { userId }),
           ...(stored ? { storageKey: stored.key, url: stored.url, mimeType: stored.mime } : {}),
           updatedBy: user.id,
         })
@@ -149,7 +151,7 @@ export async function saveReportSignatory(formData: FormData): Promise<ActionRes
       const maxOrder = (await db.select().from(reportSignatories).where(eq(reportSignatories.labId, user.labId))).reduce((m, r) => Math.max(m, r.displayOrder), -1);
       await db.insert(reportSignatories).values({
         labId: user.labId,
-        userId,
+        userId: userId ?? null,
         name,
         description,
         storageKey: stored.key,

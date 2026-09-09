@@ -207,6 +207,9 @@ export const resultApprovals = sqliteTable(
     actorName: text("actor_name"),
     actorDesignation: text("actor_designation"),
     signatureAssetId: text("signature_asset_id"),
+    // Which report_signatories the approver applied in this action — the audit
+    // record of the choice `visits.report_signatory_ids` currently reflects.
+    signatoryIds: text("signatory_ids", { mode: "json" }).$type<string[]>(),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
       .$defaultFn(() => new Date()),

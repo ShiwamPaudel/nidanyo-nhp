@@ -40,6 +40,11 @@ export const visits = sqliteTable(
     cancelledReason: text("cancelled_reason"),
     cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
     cancelledBy: text("cancelled_by"),
+    // report_signatories ids chosen by the approver, in the order they should
+    // print (left to right). Set at approval time — see approveVisit. Null on
+    // visits approved before signature selection existed; those fall back to
+    // the older staff-linked rule (see src/lib/report-signatories.ts).
+    reportSignatoryIds: text("report_signatory_ids", { mode: "json" }).$type<string[]>(),
     visitDate: integer("visit_date", { mode: "timestamp" })
       .notNull()
       .$defaultFn(() => new Date()),

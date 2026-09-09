@@ -3,9 +3,9 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ArrowLeft, ArrowRight, Upload, ImageIcon, UserCheck, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowLeft, ArrowRight, Upload, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea, Select, Field } from "@/components/ui/input";
+import { Input, Textarea, Field } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
@@ -13,22 +13,12 @@ import { saveReportSignatory, removeReportSignatory, reorderReportSignatories } 
 
 export interface SignatoryItem {
   id: string;
-  /** Staff account this block belongs to; null = lab-wide (prints on every report). */
-  userId: string | null;
   name: string;
   description: string | null;
   url: string;
 }
 
-export interface StaffOption {
-  id: string;
-  name: string;
-  designation: string | null;
-  roleKey: string;
-}
-
-export function SignatoriesManager({ items, staff }: { items: SignatoryItem[]; staff: StaffOption[] }) {
-  const staffById = new Map(staff.map((s) => [s.id, s]));
+export function SignatoriesManager({ items }: { items: SignatoryItem[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SignatoryItem | null>(null);
@@ -61,11 +51,10 @@ export function SignatoriesManager({ items, staff }: { items: SignatoryItem[]; s
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-muted-foreground">
-          Signature blocks shown at the <strong>end of every report</strong> (last page only), independent of who approved the results.
-          Add each signatory&rsquo;s signature image with their name and designation. Left-to-right order matches the list below.
-          {" "}Link a block to a <strong>staff account</strong> and it prints only on reports for visits that person registered —
-          so a lab with several technicians shows the one who handled the visit, on the left, beside the lab-wide
-          signatory (pathologist) on the right. Leave it unlinked to print on every report.
+          The signature blocks available when approving results. Add each signatory&rsquo;s signature image with their
+          name and designation. At approval the pathologist <strong>picks up to three of these</strong>, and only the
+          chosen ones print at the end of that report and on the patient&rsquo;s online copy — so what appears is decided
+          per report, not fixed here. The order below is the order they are offered in.
         </p>
         <Button onClick={openNew} className="shrink-0"><Plus className="size-4" /> Add signatory</Button>
       </div>
@@ -83,13 +72,6 @@ export function SignatoriesManager({ items, staff }: { items: SignatoryItem[]; s
                 </div>
                 <p className="font-semibold">{it.name}</p>
                 <p className="text-xs text-muted-foreground">{it.description ?? "—"}</p>
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
-                  {it.userId ? (
-                    <><UserCheck className="size-3.5 text-brand-700" /> Only visits registered by {staffById.get(it.userId)?.name ?? "a removed account"}</>
-                  ) : (
-                    <><Building2 className="size-3.5" /> Every report</>
-                  )}
-                </p>
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon-sm" disabled={idx === 0 || pending} onClick={() => move(idx, -1)} aria-label="Move left"><ArrowLeft className="size-4" /></Button>
@@ -106,18 +88,17 @@ export function SignatoriesManager({ items, staff }: { items: SignatoryItem[]; s
         </div>
       )}
 
-      {open && <SignatoryForm initial={editing} staff={staff} onClose={() => setOpen(false)} />}
+      {open && <SignatoryForm initial={editing} onClose={() => setOpen(false)} />}
     </div>
   );
 }
 
-function SignatoryForm({ initial, staff, onClose }: { initial: SignatoryItem | null; staff: StaffOption[]; onClose: () => void }) {
+function SignatoryForm({ initial, onClose }: { initial: SignatoryItem | null; onClose: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [userId, setUserId] = useState(initial?.userId ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(initial?.url ?? null);
 
@@ -136,7 +117,6 @@ function SignatoryForm({ initial, staff, onClose }: { initial: SignatoryItem | n
     if (initial) fd.set("id", initial.id);
     fd.set("name", name);
     fd.set("description", description);
-    fd.set("userId", userId);
     if (file) fd.set("file", file);
     start(async () => {
       const r = await saveReportSignatory(fd);
@@ -165,24 +145,6 @@ function SignatoryForm({ initial, staff, onClose }: { initial: SignatoryItem | n
         </Field>
         <Field label="Name" required><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. A. Sharma" autoFocus /></Field>
         <Field label="Description" hint="Designation / qualification shown under the name"><Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="MD, Consultant Pathologist" rows={2} /></Field>
-        <Field
-          label="Print on"
-          hint={
-            userId
-              ? "Prints only on reports for visits this person registered."
-              : "Prints on every report — use this for the pathologist / lab director."
-          }
-        >
-          <Select value={userId} onChange={(e) => setUserId(e.target.value)}>
-            <option value="">Every report (lab-wide)</option>
-            {staff.map((s) => (
-              <option key={s.id} value={s.id}>
-                Visits registered by {s.name}
-                {s.designation ? ` — ${s.designation}` : ""}
-              </option>
-            ))}
-          </Select>
-        </Field>
       </div>
     </Modal>
   );

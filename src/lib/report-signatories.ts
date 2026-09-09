@@ -1,5 +1,6 @@
 /**
- * Which signature blocks appear on a given report.
+ * LEGACY rule — which signature blocks appear on a report that was approved
+ * before the approver chose them explicitly.
  *
  * A lab with several technicians does not want all of their signatures on every
  * report — it wants the one who actually handled the visit, next to the
@@ -13,10 +14,15 @@
  * The staff-specific match is emitted first so it lands on the LEFT of the
  * signature row, with the lab-wide block(s) to its right.
  *
- * Both report surfaces (in-lab print and the patient's public link) run through
- * this one function, so a report never signs differently depending on where it
- * is viewed.
+ * Superseded by `visits.reportSignatoryIds`, which records the signatures the
+ * approver actually selected. This is kept only so that visits approved before
+ * that existed keep printing exactly what they printed then — a report already
+ * handed to a patient must never change retroactively. New approvals never
+ * reach this function; see `pickReportSignatoriesForVisit`.
  */
+
+/** Most signature blocks a single report can carry. */
+export const MAX_REPORT_SIGNATORIES = 3;
 
 export interface SignatoryRow {
   id: string;
@@ -64,4 +70,29 @@ export function pickReportSignatories(
   const staff = createdById ? rows.filter((r) => r.userId === createdById) : [];
 
   return [...staff, ...labWide].map(strip);
+}
+
+
+/**
+ * The signatures for a report, in print order (left to right).
+ *
+ * The approver's explicit choice wins whenever there is one. A visit approved
+ * before signature selection existed has none stored, so it falls back to the
+ * old staff-linked rule and keeps printing what it always did.
+ */
+export function pickReportSignatoriesForVisit(
+  rows: SignatoryRow[],
+  visit: { reportSignatoryIds?: string[] | null; createdBy?: string | null },
+): PickedSignatory[] {
+  const chosen = visit.reportSignatoryIds;
+  if (chosen && chosen.length > 0) {
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    // Ordered by the approver's selection, not displayOrder. A signature since
+    // deactivated or deleted simply drops out rather than blanking the row.
+    return chosen
+      .map((id) => byId.get(id))
+      .filter((r): r is SignatoryRow => Boolean(r))
+      .map(({ id, name, description, url }) => ({ id, name, description, url }));
+  }
+  return pickReportSignatories(rows, visit.createdBy);
 }

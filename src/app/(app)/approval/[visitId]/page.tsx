@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, UserRound, AlertTriangle } from "lucide-react";
 import { requirePermission } from "@/lib/auth/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
-import { getVisitForApproval } from "@/lib/queries/approval";
+import { getVisitForApproval, listSignatoriesForApproval } from "@/lib/queries/approval";
 import { PageHeader } from "@/components/ui/page";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,21 +11,24 @@ import { Badge } from "@/components/ui/badge";
 import { StatusChip } from "@/components/ui/status-chip";
 import { cn, ageLabel, money } from "@/lib/utils";
 import { flagSymbol, type ResultFlag } from "@/lib/result-flags";
-import { ApprovalActions } from "./approval-actions";
+import { ApprovalActions, ApprovalProvider, SignaturePicker } from "./approval-actions";
 
 export const metadata = { title: "Review results" };
 
 export default async function ApprovalReviewPage({ params }: { params: Promise<{ visitId: string }> }) {
   const user = await requirePermission(PERMISSIONS.APPROVAL_VIEW);
   const { visitId } = await params;
-  const data = await getVisitForApproval(user.labId, visitId);
+  const [data, signatories] = await Promise.all([
+    getVisitForApproval(user.labId, visitId),
+    listSignatoriesForApproval(user.labId),
+  ]);
   if (!data) notFound();
   const { visit, patient, bill, entries } = data;
   const due = bill?.dueAmount ?? 0;
   const hasSubmitted = entries.some((e) => e.entry.status === "submitted");
 
   return (
-    <>
+    <ApprovalProvider>
       <PageHeader
         title={`Review · ${visit.code}`}
         description={`${patient?.fullName} · ${patient?.code} · ${patient?.gender}, ${ageLabel(patient?.ageValue, patient?.ageUnit)}`}
@@ -42,6 +45,9 @@ export default async function ApprovalReviewPage({ params }: { params: Promise<{
           This bill has an outstanding due of <span className="font-semibold">{money(due)}</span>. Results can be approved now, but the report will only be released to the patient after payment is cleared.
         </div>
       )}
+
+      {/* Signatures first: the approver chooses them before anything can be signed. */}
+      {hasSubmitted && <SignaturePicker signatories={signatories} />}
 
       <Card className="mb-4">
         <CardContent className="flex items-center gap-3 pt-5">
@@ -100,6 +106,6 @@ export default async function ApprovalReviewPage({ params }: { params: Promise<{
           </Card>
         ))}
       </div>
-    </>
+    </ApprovalProvider>
   );
 }
