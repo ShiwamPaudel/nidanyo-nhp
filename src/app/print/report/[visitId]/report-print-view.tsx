@@ -122,7 +122,7 @@ export function ReportPrintView(props: ReportSheetProps) {
   }, [showHeader, showFooter, fallbackTopMm, fallbackBottomMm, marginX]);
 
   return (
-    <div className="min-h-screen bg-[#eef1ee]">
+    <div className="min-h-screen bg-[#eef1ee] print-root">
       <div className="no-print sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
         <button onClick={() => window.history.back()} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted">
           <ArrowLeft className="size-4" /> Back
@@ -168,7 +168,7 @@ export function ReportPrintView(props: ReportSheetProps) {
 
       {/* Fallback: native table-based report until paged.js is ready or if it fails. */}
       {!paged && (
-        <div className="py-6">
+        <div className="py-6 print-page-wrap">
           <ReportSheet {...props} showHeader={showHeader} showFooter={showFooter} />
         </div>
       )}

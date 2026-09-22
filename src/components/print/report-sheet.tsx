@@ -106,7 +106,7 @@ export function ReportSheet({
   pendingNote,
 }: ReportSheetProps) {
   return (
-    <div className="a4-sheet relative shadow-card print-sheet" style={{ padding: 0 }}>
+    <div className="a4-sheet relative shadow-card print-sheet print-fit" style={{ padding: 0 }}>
       {watermark && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <span className="rotate-[-30deg] text-[80px] font-bold uppercase tracking-widest text-[#0E1B14] opacity-[0.04]">{watermark}</span>
@@ -199,7 +199,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], idB
       </div>
 
       {/* Patient + meta */}
-      <div className="mt-3 grid grid-cols-2 gap-3 border-y border-[#0E1B14]/12 py-2 text-[12px]">
+      <div className="mt-3 grid grid-cols-2 gap-3 border-y border-[#0E1B14]/12 py-2 text-[15px]">
         <div className="space-y-0.5">
           <Line label="Patient" value={patient.fullName} bold />
           <Line label="Patient ID" value={patient.code} />
@@ -221,13 +221,14 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], idB
         still get a name row above their parameters.
       */}
       {[...byDept.entries()].map(([dept, list]) => (
-        // break-inside-avoid keeps a department whole: it stays on this page if
-        // it fits in the space left, otherwise the entire section moves to the
-        // next page rather than splitting its heading from its tests. (A
-        // department taller than a full page still has to break — nothing can
-        // fit it otherwise.)
-        <div key={dept} className="mt-4 break-inside-avoid">
-          <p className="mb-1 bg-[#F1F5F2] px-2 py-1 text-[14px] font-extrabold uppercase tracking-wide text-brand-700">{dept}</p>
+        // Departments FLOW: a section starts right after the previous one and
+        // splits across the page boundary when it has to. It used to carry
+        // break-inside-avoid, which pushed a whole department to the next page
+        // whenever it did not fit in the space left — leaving a band of blank
+        // paper mid-report. Only the heading is protected now (below), so it
+        // can never be stranded as the last thing on a page.
+        <div key={dept} className="mt-4">
+          <p className="mb-1 break-after-avoid bg-[#F1F5F2] px-2 py-1 text-[14px] font-extrabold uppercase tracking-wide text-brand-700">{dept}</p>
           <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr className="border-b border-[#0E1B14]/15 text-left text-[#647067]">
@@ -242,8 +243,8 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], idB
                 <Fragment key={sec.key}>
                   {/* Profile/panel heading — the tests below belong to it. */}
                   {sec.groupName && (
-                    <tr className="break-inside-avoid">
-                      <td colSpan={4} className="pt-2.5 text-[12.5px] font-bold text-brand-700">{sec.groupName}</td>
+                    <tr className="break-inside-avoid break-after-avoid">
+                      <td colSpan={4} className="pt-2 text-[14.5px] font-bold text-brand-700">{sec.groupName}</td>
                     </tr>
                   )}
                   {sec.items.map((e) => {
@@ -262,7 +263,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], idB
                         ) : (
                           <>
                             <tr className="break-inside-avoid">
-                              <td colSpan={4} className={`pt-1.5 text-[12px] font-semibold underline${inGroup ? " pl-3" : ""}`}>
+                              <td colSpan={4} className={`pt-1 text-[12px] font-semibold underline${inGroup ? " pl-3" : ""}`}>
                                 {e.entry.testName}
                               </td>
                             </tr>
@@ -417,20 +418,20 @@ function ValueRow({
   const pad = indent === 2 ? " pl-6" : indent === 1 ? " pl-3" : "";
   return (
     <tr className="break-inside-avoid border-b border-[#F0F2F0]">
-      <td className={`py-1 align-top${pad}`}>
+      <td className={`py-0.5 align-top${pad}`}>
         {label}
         {method && (
           <span className="block text-[10.5px] italic text-[#647067]">Method: {method}</span>
         )}
       </td>
       <td
-        className="py-1 align-top font-semibold tabular"
+        className="py-0.5 align-top font-semibold tabular"
         style={{ color: critical ? "#FF3131" : abnormal ? "#B45309" : "#0E1B14" }}
       >
         {v.valueText ?? "—"} {abnormal && <span className="text-[10px]">{flagSymbol(flag)}</span>}
       </td>
-      <td className="py-1 align-top text-[#475467]">{v.unit ?? ""}</td>
-      <td className="whitespace-pre-line py-1 align-top text-[#475467]">{v.refText ?? ""}</td>
+      <td className="py-0.5 align-top text-[#475467]">{v.unit ?? ""}</td>
+      <td className="whitespace-pre-line py-0.5 align-top text-[#475467]">{v.refText ?? ""}</td>
     </tr>
   );
 }

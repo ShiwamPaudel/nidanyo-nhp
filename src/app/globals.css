@@ -142,7 +142,7 @@
   }
 
   /*
-   * Fit-to-content printing (bills).
+   * Fit-to-content printing (bills and reports).
    *
    * @page has no margin, so the printable area is exactly 297mm. Anything that
    * adds height on top of a 297mm sheet pushes a sliver onto a second, near
@@ -152,7 +152,8 @@
    *
    * In print we drop all three and let the content decide the height: a short
    * bill ends on page one, a long one still flows onto page two naturally.
-   * Scoped to these classes so the paged report sheet is untouched.
+   * Scoped to these classes. Reports use them too: paged.js falls back to the
+   * plain report sheet, which had the same grey band + blank trailing page.
    */
   .print-root {
     min-height: 0 !important;

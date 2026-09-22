@@ -49,7 +49,7 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
     : null;
 
   return (
-    <div className="min-h-screen bg-[#eef1ee]">
+    <div className="min-h-screen bg-[#eef1ee] print-root">
       <div className="no-print border-b border-border bg-card">
         <div className="mx-auto flex max-w-[210mm] items-center justify-between px-4 py-3">
           <Logo size="sm" />
@@ -69,7 +69,7 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
         </div>
       )}
       <PrintToolbar />
-      <div className="py-6">
+      <div className="py-6 print-page-wrap">
         <ReportSheet
           lab={{ name: data.lab?.name ?? "Laboratory", address: data.settings?.address, phone: data.settings?.phone, email: data.settings?.email, website: data.settings?.website, panVat: data.settings?.panVat }}
           headerUrl={data.headerUrl}
