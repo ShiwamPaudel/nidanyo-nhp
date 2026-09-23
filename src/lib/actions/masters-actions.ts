@@ -10,7 +10,16 @@ import { ActionResult, ok, fail, run } from "@/lib/action";
 import { audit } from "@/lib/audit";
 
 /* ── Departments ─────────────────────────────────────────────── */
-export async function saveDepartment(input: { id?: string; name: string; displayOrder?: number; billingOnly?: boolean }): Promise<ActionResult> {
+export async function saveDepartment(input: {
+  id?: string;
+  name: string;
+  displayOrder?: number;
+  billingOnly?: boolean;
+  /** Print the Unit column for this department's tests (Settings → Departments). */
+  showUnit?: boolean;
+  /** Print the Reference Range column for this department's tests. */
+  showReferenceRange?: boolean;
+}): Promise<ActionResult> {
   return run(async () => {
     const user = await authorize(PERMISSIONS.SETTINGS_MANAGE);
     const name = input.name?.trim();
@@ -22,14 +31,33 @@ export async function saveDepartment(input: { id?: string; name: string; display
       // someone edited its name.
       await db
         .update(departments)
-        .set({ name, billingOnly, ...(input.displayOrder != null ? { displayOrder: input.displayOrder } : {}) })
+        // Same reasoning as displayOrder for the two column flags: a caller
+        // that does not mention them must not silently switch them back on.
+        .set({
+          name,
+          billingOnly,
+          ...(input.displayOrder != null ? { displayOrder: input.displayOrder } : {}),
+          ...(input.showUnit != null ? { showUnit: input.showUnit } : {}),
+          ...(input.showReferenceRange != null ? { showReferenceRange: input.showReferenceRange } : {}),
+        })
         .where(and(eq(departments.id, input.id), eq(departments.labId, user.labId)));
     } else {
-      await db.insert(departments).values({ labId: user.labId, name, displayOrder: input.displayOrder ?? 0, billingOnly });
+      await db.insert(departments).values({
+        labId: user.labId,
+        name,
+        displayOrder: input.displayOrder ?? 0,
+        billingOnly,
+        showUnit: input.showUnit ?? true,
+        showReferenceRange: input.showReferenceRange ?? true,
+      });
     }
     await audit(user, "department.save", { entity: "department", summary: `Saved department ${name}${billingOnly ? " (billing-only)" : ""}` });
     revalidatePath("/settings/departments");
     revalidatePath("/billing");
+    // The flags change what a report prints, so both report surfaces must
+    // re-render rather than serve a cached four-column layout.
+    revalidatePath("/print/report", "layout");
+    revalidatePath("/r", "layout");
     return ok(undefined, "Saved");
   });
 }

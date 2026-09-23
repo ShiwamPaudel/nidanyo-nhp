@@ -23,6 +23,9 @@ export interface MasterItem {
   name: string;
   isActive: boolean;
   billingOnly?: boolean;
+  /** Departments only — whether reports print the Unit / Reference Range column. */
+  showUnit?: boolean;
+  showReferenceRange?: boolean;
   displayOrder?: number;
   colorHex?: string | null;
   qualification?: string | null;
@@ -62,7 +65,7 @@ export function MastersManager({ kind, items, hint }: { kind: MasterKind; items:
                 <TH>Name</TH>
                 {kind === "doctor" && <><TH>Qualification</TH><TH>Clinic</TH><TH>Phone</TH></>}
                 {kind === "sampleType" && <TH>Color</TH>}
-                {kind === "department" && <><TH>Order</TH><TH>Type</TH></>}
+                {kind === "department" && <><TH>Order</TH><TH>Type</TH><TH>Report columns</TH></>}
                 <TH>Status</TH>
                 <TH className="text-right">Actions</TH>
               </TR>
@@ -77,6 +80,7 @@ export function MastersManager({ kind, items, hint }: { kind: MasterKind; items:
                     <>
                       <TD className="tabular text-muted-foreground">{it.displayOrder ?? 0}</TD>
                       <TD>{it.billingOnly ? <Badge tone="neutral">Billing only</Badge> : <Badge tone="brand">Reportable</Badge>}</TD>
+                      <TD><ReportColumns item={it} /></TD>
                     </>
                   )}
                   <TD>{it.isActive ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Inactive</Badge>}</TD>
@@ -95,6 +99,27 @@ export function MastersManager({ kind, items, hint }: { kind: MasterKind; items:
 
       {open && <MasterForm kind={kind} initial={editing} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/**
+ * Which result columns this department's reports carry. Billing-only
+ * departments never reach a report at all, so the question does not apply.
+ */
+function ReportColumns({ item }: { item: MasterItem }) {
+  if (item.billingOnly) return <span className="text-muted-foreground">—</span>;
+  const on = [
+    item.showUnit !== false ? "Unit" : null,
+    item.showReferenceRange !== false ? "Ref. range" : null,
+  ].filter(Boolean) as string[];
+  if (on.length === 2) return <span className="text-muted-foreground">Unit · Ref. range</span>;
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {on.map((c) => (
+        <Badge key={c} tone="neutral">{c}</Badge>
+      ))}
+      <Badge tone="warning">{on.length === 0 ? "Both hidden" : "1 hidden"}</Badge>
+    </span>
   );
 }
 
@@ -117,6 +142,8 @@ function MasterForm({ kind, initial, onClose }: { kind: MasterKind; initial: Mas
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     billingOnly: initial?.billingOnly ?? false,
+    showUnit: initial?.showUnit ?? true,
+    showReferenceRange: initial?.showReferenceRange ?? true,
     displayOrder: initial?.displayOrder ?? 0,
     colorHex: initial?.colorHex ?? "#075323",
     qualification: initial?.qualification ?? "",
@@ -129,7 +156,15 @@ function MasterForm({ kind, initial, onClose }: { kind: MasterKind; initial: Mas
   function submit() {
     start(async () => {
       let res;
-      if (kind === "department") res = await saveDepartment({ id: initial?.id, name: form.name, billingOnly: form.billingOnly, displayOrder: Number(form.displayOrder) || 0 });
+      if (kind === "department")
+        res = await saveDepartment({
+          id: initial?.id,
+          name: form.name,
+          billingOnly: form.billingOnly,
+          displayOrder: Number(form.displayOrder) || 0,
+          showUnit: form.showUnit,
+          showReferenceRange: form.showReferenceRange,
+        });
       else if (kind === "sampleType") res = await saveSampleType({ id: initial?.id, name: form.name, colorHex: form.colorHex });
       else res = await saveDoctor({ id: initial?.id, name: form.name, qualification: form.qualification, clinic: form.clinic, phone: form.phone, commissionPercent: Number(form.commissionPercent) });
       if (res.ok) { toast.success(res.message ?? "Saved"); onClose(); router.refresh(); }
@@ -163,6 +198,33 @@ function MasterForm({ kind, initial, onClose }: { kind: MasterKind; initial: Mas
               />
               This department is for billing only
             </label>
+          </Field>
+        )}
+        {kind === "department" && !form.billingOnly && (
+          <Field
+            label="Columns to print on the report"
+            hint="Uncheck a column that this department never fills in — it is then left out of this department’s table on the report instead of printing blank on every line. Other departments are unaffected, and any values already saved are kept."
+          >
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.showUnit}
+                  onChange={(e) => set("showUnit", e.target.checked)}
+                  className="size-4 rounded border-border accent-brand-700"
+                />
+                Unit
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.showReferenceRange}
+                  onChange={(e) => set("showReferenceRange", e.target.checked)}
+                  className="size-4 rounded border-border accent-brand-700"
+                />
+                Reference range
+              </label>
+            </div>
           </Field>
         )}
         {kind === "sampleType" && (

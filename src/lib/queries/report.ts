@@ -64,6 +64,14 @@ export async function getReportData(labId: string, visitId: string, onlyEntryIds
   const deptById = new Map(deptRows.map((d) => [d.id, d.name]));
   const testById = new Map(testRows.map((t) => [t.id, t]));
   const deptByTest = new Map(testRows.map((t) => [t.id, t.departmentId ? deptById.get(t.departmentId) ?? null : null]));
+  // Which result columns this test's department prints (Settings →
+  // Departments). A test with no department keeps the full layout.
+  const deptColsByTest = new Map(
+    testRows.map((t) => {
+      const d = t.departmentId ? deptRowById.get(t.departmentId) : null;
+      return [t.id, { showUnit: d?.showUnit ?? true, showRefRange: d?.showReferenceRange ?? true }] as const;
+    }),
+  );
   const noteByTest = new Map(testRows.map((t) => [t.id, t.description ?? null]));
   const methodByTest = new Map(testRows.map((t) => [t.id, t.method ?? null]));
 
@@ -127,6 +135,8 @@ export async function getReportData(labId: string, visitId: string, onlyEntryIds
       entry: e,
       values: valuesByEntry.get(e.id) ?? [],
       department: deptByTest.get(e.testId) ?? null,
+      showUnit: deptColsByTest.get(e.testId)?.showUnit ?? true,
+      showRefRange: deptColsByTest.get(e.testId)?.showRefRange ?? true,
       note: noteByTest.get(e.testId) ?? null,
       method: methodByTest.get(e.testId) ?? null,
       // Profile/panel this test was ordered under (snapshot on the visit test),

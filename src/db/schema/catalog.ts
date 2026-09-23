@@ -16,6 +16,22 @@ export const departments = sqliteTable("departments", {
    * result entry, and a visit made up solely of them carries no report QR.
    */
   billingOnly: integer("billing_only", { mode: "boolean" }).notNull().default(false),
+  /**
+   * Report column visibility for this department's tests.
+   *
+   * Some departments never produce a unit or a reference range — a
+   * Parasitology stool exam reports "Ova/cyst not seen" and nothing else — so
+   * printing those columns leaves a blank strip down every line of the report.
+   * Switching one off drops the whole column for that department's section
+   * only; the remaining columns take the freed width.
+   *
+   * Both default to true, so every existing department keeps the four-column
+   * layout it already prints. The stored reference-range/unit values are left
+   * untouched — this hides them, it does not delete them, so flipping the
+   * switch back restores the column exactly as it was.
+   */
+  showUnit: integer("show_unit", { mode: "boolean" }).notNull().default(true),
+  showReferenceRange: integer("show_reference_range", { mode: "boolean" }).notNull().default(true),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   ...timestamps,
 });

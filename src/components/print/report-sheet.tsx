@@ -27,6 +27,15 @@ export interface ReportEntry {
   method?: string | null;
   /** Profile/panel the test was ordered under (e.g. "Complete Blood Count (CBC)"). */
   groupName?: string | null;
+  /**
+   * Report columns this test's department prints (Settings → Departments).
+   * A department like Parasitology, whose results are pure text, switches the
+   * Unit and/or Reference Range column off so the report does not carry a
+   * blank strip down every line. Undefined means show — anything that does
+   * not supply these keeps the original four-column layout.
+   */
+  showUnit?: boolean;
+  showRefRange?: boolean;
 }
 
 /** Admin-managed signatory shown at the end of the report. */
@@ -221,7 +230,17 @@ export function ReportBody({ cal, patient, visit, entries, idBarcodeUrl, qrDataU
         the row label wasted three lines each. Multi-parameter tests (Stool R/E)
         still get a name row above their parameters.
       */}
-      {[...byDept.entries()].map(([dept, list]) => (
+      {[...byDept.entries()].map(([dept, list]) => {
+        // Unit / Reference Range are dropped for the whole section when this
+        // department's tests never carry them. `some`, not `every`: a column
+        // only disappears when nothing in the section wants it, so a mixed
+        // section still prints every value it holds — on a medical document,
+        // hiding a populated column is the worse failure.
+        const showUnit = list.some((e) => e.showUnit !== false);
+        const showRef = list.some((e) => e.showRefRange !== false);
+        const cols = 2 + (showUnit ? 1 : 0) + (showRef ? 1 : 0);
+        const w = columnWidths(showUnit, showRef);
+        return (
         // Departments FLOW: a section starts right after the previous one and
         // splits across the page boundary when it has to. It used to carry
         // break-inside-avoid, which pushed a whole department to the next page
@@ -233,10 +252,10 @@ export function ReportBody({ cal, patient, visit, entries, idBarcodeUrl, qrDataU
           <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr className="border-b border-[#0E1B14]/15 text-left text-[#647067]">
-                <th className="w-[38%] py-1">Investigation</th>
-                <th className="w-[20%] py-1">Result</th>
-                <th className="w-[14%] py-1">Unit</th>
-                <th className="w-[28%] py-1">Reference Range</th>
+                <th className="py-1" style={{ width: w.name }}>Investigation</th>
+                <th className="py-1" style={{ width: w.result }}>Result</th>
+                {showUnit && <th className="py-1" style={{ width: w.unit }}>Unit</th>}
+                {showRef && <th className="py-1" style={{ width: w.ref }}>Reference Range</th>}
               </tr>
             </thead>
             <tbody>
@@ -245,7 +264,7 @@ export function ReportBody({ cal, patient, visit, entries, idBarcodeUrl, qrDataU
                   {/* Profile/panel heading — the tests below belong to it. */}
                   {sec.groupName && (
                     <tr className="break-inside-avoid break-after-avoid">
-                      <td colSpan={4} className="pt-1.5 text-[14.5px] font-bold text-brand-700">{sec.groupName}</td>
+                      <td colSpan={cols} className="pt-1.5 text-[14.5px] font-bold text-brand-700">{sec.groupName}</td>
                     </tr>
                   )}
                   {sec.items.map((e) => {
@@ -260,20 +279,20 @@ export function ReportBody({ cal, patient, visit, entries, idBarcodeUrl, qrDataU
                     return (
                       <Fragment key={e.entry.id}>
                         {oneLiner ? (
-                          <ValueRow value={only!} label={e.entry.testName} method={e.method} indent={inGroup ? 1 : 0} />
+                          <ValueRow value={only!} label={e.entry.testName} method={e.method} indent={inGroup ? 1 : 0} showUnit={showUnit} showRef={showRef} />
                         ) : (
                           <>
                             <tr className="break-inside-avoid">
-                              <td colSpan={4} className={`pt-0.5 text-[12px] font-semibold underline${inGroup ? " pl-3" : ""}`}>
+                              <td colSpan={cols} className={`pt-0.5 text-[12px] font-semibold underline${inGroup ? " pl-3" : ""}`}>
                                 {e.entry.testName}
                               </td>
                             </tr>
                             {e.values.map((v) => (
-                              <ValueRow key={v.id} value={v} label={v.label} indent={inGroup ? 2 : 1} />
+                              <ValueRow key={v.id} value={v} label={v.label} indent={inGroup ? 2 : 1} showUnit={showUnit} showRef={showRef} />
                             ))}
                             {e.method && (
                               <tr>
-                                <td colSpan={4} className={`pb-1 text-[10.5px] italic text-[#647067]${inGroup ? " pl-3" : ""}`}>Method: {e.method}</td>
+                                <td colSpan={cols} className={`pb-1 text-[10.5px] italic text-[#647067]${inGroup ? " pl-3" : ""}`}>Method: {e.method}</td>
                               </tr>
                             )}
                           </>
@@ -303,7 +322,8 @@ export function ReportBody({ cal, patient, visit, entries, idBarcodeUrl, qrDataU
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
 
       {/* Interpretation */}
       {interpretations.length > 0 && (
@@ -413,22 +433,40 @@ function profileSections(list: ReportEntry[]) {
 }
 
 /**
+ * Column widths for a department's result table. Whatever a hidden Unit or
+ * Reference Range column gives up is handed back to the columns that remain,
+ * so a two-column section fills the page instead of huddling on the left.
+ */
+function columnWidths(showUnit: boolean, showRef: boolean) {
+  if (showUnit && showRef) return { name: "38%", result: "20%", unit: "14%", ref: "28%" };
+  if (showRef) return { name: "44%", result: "22%", unit: "0", ref: "34%" };
+  if (showUnit) return { name: "52%", result: "28%", unit: "20%", ref: "0" };
+  return { name: "62%", result: "38%", unit: "0", ref: "0" };
+}
+
+/**
  * One result line: Investigation | Result | Unit | Reference Range.
  * Shared by the collapsed single-value form and the parameter rows of a
  * multi-parameter test, so both stay visually identical.
  * `indent` is the nesting level (0 = flush, 1 = under a test/profile, 2 = a
  * parameter of a test that itself sits under a profile).
+ * `showUnit` / `showRef` mirror the section header — a row must never emit a
+ * cell for a column its table does not have, or the whole table skews.
  */
 function ValueRow({
   value: v,
   label,
   indent = 0,
   method,
+  showUnit = true,
+  showRef = true,
 }: {
   value: ReportValue;
   label: string;
   indent?: 0 | 1 | 2;
   method?: string | null;
+  showUnit?: boolean;
+  showRef?: boolean;
 }) {
   const flag = v.flag as ResultFlag;
   const critical = flag === "critical_low" || flag === "critical_high";
@@ -448,8 +486,8 @@ function ValueRow({
       >
         {v.valueText ?? "—"} {abnormal && <span className="text-[10px]">{flagSymbol(flag)}</span>}
       </td>
-      <td className="py-0.5 align-top text-[#475467]">{v.unit ?? ""}</td>
-      <td className="whitespace-pre-line py-0.5 align-top text-[#475467]">{v.refText ?? ""}</td>
+      {showUnit && <td className="py-0.5 align-top text-[#475467]">{v.unit ?? ""}</td>}
+      {showRef && <td className="whitespace-pre-line py-0.5 align-top text-[#475467]">{v.refText ?? ""}</td>}
     </tr>
   );
 }
