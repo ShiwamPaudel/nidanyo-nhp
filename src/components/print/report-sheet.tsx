@@ -136,6 +136,9 @@ export function ReportSheet({
         <tfoot className="table-footer-group">
           <tr>
             <td style={{ padding: 0 }}>
+              {/* Signatures sit inside the repeating footer, so they print at the
+                  foot of every page rather than only the last. */}
+              <ReportSignatures signatories={signatories} marginXMm={marginXMm} />
               {/* Reserve the BOTTOM margin here — this used to reuse marginTopMm,
                   so the configured bottom margin never had any effect. */}
               <div style={{ minHeight: `${marginBottomMm}mm` }}>
@@ -147,7 +150,7 @@ export function ReportSheet({
         <tbody>
           <tr>
             <td style={{ padding: `3mm ${marginXMm}mm` }}>
-              <ReportBody cal={cal} patient={patient} visit={visit} entries={entries} signatories={signatories} idBarcodeUrl={idBarcodeUrl} qrDataUrl={qrDataUrl} publicUrl={publicUrl} pendingNote={pendingNote} />
+              <ReportBody cal={cal} patient={patient} visit={visit} entries={entries} idBarcodeUrl={idBarcodeUrl} qrDataUrl={qrDataUrl} publicUrl={publicUrl} pendingNote={pendingNote} />
             </td>
           </tr>
         </tbody>
@@ -156,16 +159,14 @@ export function ReportSheet({
   );
 }
 
-export type ReportBodyProps = Pick<ReportSheetProps, "cal" | "patient" | "visit" | "entries" | "idBarcodeUrl" | "qrDataUrl" | "publicUrl" | "pendingNote"> & {
-  signatories?: ReportSignatory[];
-};
+export type ReportBodyProps = Pick<ReportSheetProps, "cal" | "patient" | "visit" | "entries" | "idBarcodeUrl" | "qrDataUrl" | "publicUrl" | "pendingNote">;
 
 /**
  * The printable content of a report (everything between the letterhead header
  * and footer). Shared by the table-based ReportSheet and the paged.js print
  * view so both render identical content.
  */
-export function ReportBody({ cal, patient, visit, entries, signatories = [], idBarcodeUrl, qrDataUrl, publicUrl, pendingNote }: ReportBodyProps) {
+export function ReportBody({ cal, patient, visit, entries, idBarcodeUrl, qrDataUrl, publicUrl, pendingNote }: ReportBodyProps) {
   // Group entries by department for clean sectioning.
   const byDept = new Map<string, ReportEntry[]>();
   for (const e of entries) {
@@ -227,7 +228,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], idB
         // whenever it did not fit in the space left — leaving a band of blank
         // paper mid-report. Only the heading is protected now (below), so it
         // can never be stranded as the last thing on a page.
-        <div key={dept} className="mt-4">
+        <div key={dept} className="mt-3">
           <p className="mb-1 break-after-avoid bg-[#F1F5F2] px-2 py-1 text-[14px] font-extrabold uppercase tracking-wide text-brand-700">{dept}</p>
           <table className="w-full border-collapse text-[12px]">
             <thead>
@@ -244,7 +245,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], idB
                   {/* Profile/panel heading — the tests below belong to it. */}
                   {sec.groupName && (
                     <tr className="break-inside-avoid break-after-avoid">
-                      <td colSpan={4} className="pt-2 text-[14.5px] font-bold text-brand-700">{sec.groupName}</td>
+                      <td colSpan={4} className="pt-1.5 text-[14.5px] font-bold text-brand-700">{sec.groupName}</td>
                     </tr>
                   )}
                   {sec.items.map((e) => {
@@ -263,7 +264,7 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], idB
                         ) : (
                           <>
                             <tr className="break-inside-avoid">
-                              <td colSpan={4} className={`pt-1 text-[12px] font-semibold underline${inGroup ? " pl-3" : ""}`}>
+                              <td colSpan={4} className={`pt-0.5 text-[12px] font-semibold underline${inGroup ? " pl-3" : ""}`}>
                                 {e.entry.testName}
                               </td>
                             </tr>
@@ -340,32 +341,49 @@ export function ReportBody({ cal, patient, visit, entries, signatories = [], idB
         </div>
       )}
 
-      {/*
-        Admin-managed signatories — a single horizontal row. Which blocks appear
-        is decided server-side by `pickReportSignatories`: the staff-specific one
-        (the technician who registered the visit) comes first, the lab-wide one
-        (pathologist) after. Two blocks are pushed to opposite edges so they read
-        as "performed by | approved by"; three or more space out evenly.
-      */}
-      {signatories.length > 0 && (
-        <div
-          className={`mt-8 flex items-end gap-6 break-inside-avoid ${
-            signatories.length <= 2 ? "justify-between px-4" : "justify-around"
-          }`}
-        >
-          {signatories.map((s) => (
-            <div key={s.id} className="text-center text-[12px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={s.url} alt="" className="mx-auto mb-1 h-12 object-contain" />
-              <div className="border-t border-[#0E1B14] px-6 pt-1">
-                <p className="font-semibold">{s.name}</p>
-                {s.description && <p className="whitespace-pre-line text-[11px] text-[#647067]">{s.description}</p>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </>
+  );
+}
+
+/**
+ * The signature row, printed at the foot of EVERY page.
+ *
+ * It lives in the letterhead table's `<tfoot>` (and in the paged.js running
+ * footer), not in the report body, because a table-footer-group is what the
+ * browser repeats on each printed page — the same mechanism that already
+ * repeats the letterhead footer. Putting it in the body would print it once,
+ * on the last page only.
+ *
+ * Which blocks appear is decided server-side by `pickReportSignatoriesForVisit`
+ * from the approver's selection. Two blocks are pushed to opposite edges so
+ * they read as "performed by | approved by"; three or more space out evenly.
+ */
+export function ReportSignatures({
+  signatories,
+  marginXMm = 12,
+}: {
+  signatories: ReportSignatory[];
+  marginXMm?: number;
+}) {
+  if (signatories.length === 0) return null;
+  return (
+    <div
+      className={`mt-4 flex items-end gap-6 break-inside-avoid ${
+        signatories.length <= 2 ? "justify-between px-4" : "justify-around"
+      }`}
+      style={{ paddingLeft: `${marginXMm}mm`, paddingRight: `${marginXMm}mm` }}
+    >
+      {signatories.map((s) => (
+        <div key={s.id} className="text-center text-[12px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={s.url} alt="" className="mx-auto mb-1 h-12 object-contain" />
+          <div className="border-t border-[#0E1B14] px-6 pt-1">
+            <p className="font-semibold">{s.name}</p>
+            {s.description && <p className="whitespace-pre-line text-[11px] text-[#647067]">{s.description}</p>}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
