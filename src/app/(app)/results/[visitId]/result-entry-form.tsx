@@ -266,7 +266,14 @@ function ParamRow({
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
             inputMode={row.resultType === "numeric" ? "decimal" : "text"}
-            className={cn("h-9 w-36", critical && "border-destructive text-destructive font-semibold", flag !== "normal" && !critical && "border-amber-400")}
+            className={cn(
+              "h-9 w-36",
+              // Out-of-range values make the box itself glow (kept while focused), matching the flag badge tone.
+              critical &&
+                "border-destructive bg-red-50 text-destructive font-semibold ring-2 ring-destructive/40 shadow-[0_0_12px_rgba(255,51,51,0.55)] focus-visible:border-destructive focus-visible:ring-destructive/50",
+              flag !== "normal" && !critical &&
+                "border-amber-500 bg-amber-50 text-amber-900 font-semibold ring-2 ring-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.55)] focus-visible:border-amber-500 focus-visible:ring-amber-400/60",
+            )}
             placeholder="Enter"
           />
         )}
