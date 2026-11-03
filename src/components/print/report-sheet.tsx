@@ -481,7 +481,9 @@ function ValueRow({
         )}
       </td>
       <td
-        className="py-0.5 align-top font-semibold tabular"
+        // Every value is semibold; High/Low go extra-bold so they still stand
+        // out when the report is printed in black and white.
+        className={`py-0.5 align-top tabular ${abnormal ? "font-extrabold" : "font-semibold"}`}
         style={{ color: critical ? "#FF3131" : abnormal ? "#B45309" : "#0E1B14" }}
       >
         {v.valueText ?? "—"} {abnormal && <span className="text-[10px]">{flagSymbol(flag)}</span>}

@@ -72,12 +72,73 @@ export function ResultEntryForm({ visitId, initialEntries }: { visitId: string; 
     e.preventDefault();
     const root = formRef.current;
     if (!root) return;
+    const autofilled = autofillDc(target);
     const fields = Array.from(root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input:not([disabled]), select:not([disabled])"));
     const next = fields[fields.indexOf(target as HTMLInputElement) + 1];
     if (next) {
       next.focus();
-      if (next instanceof HTMLInputElement) next.select();
+      // After an autofill the next box's new value lands on the next render, so
+      // select it then — otherwise the selection is lost when the value changes.
+      if (next instanceof HTMLInputElement) {
+        if (autofilled) requestAnimationFrame(() => next.select());
+        else next.select();
+      }
     }
+  }
+
+  // DC (differential count) autofill, on Enter only — the filled values stay
+  // freely editable. Neutrophils + Lymphocytes make 90; Monocytes + Eosinophils
+  // + Basophils make 10. Enter on Neutrophils fills Lymphocytes; on Monocytes
+  // fills Eosinophils and sets Basophils to 0; on Eosinophils fills Basophils.
+  // Rows are found by label, in the same test first (DC as one test with these
+  // parameters) and otherwise anywhere on the form (each as its own test).
+  function autofillDc(target: HTMLElement): boolean {
+    const ei = Number(target.dataset.ei);
+    const ri = Number(target.dataset.ri);
+    if (Number.isNaN(ei) || Number.isNaN(ri)) return false;
+    const row = entries[ei]?.rows[ri];
+    if (!row) return false;
+    const kind = dcKind(row.label);
+    if (!kind || row.value.trim() === "") return false;
+    const typed = Number(row.value);
+    if (Number.isNaN(typed)) return false;
+
+    const find = (k: DcKind): [number, number] | null => {
+      const own = entries[ei].rows.findIndex((r) => dcKind(r.label) === k);
+      if (own >= 0) return [ei, own];
+      for (let i = 0; i < entries.length; i++) {
+        const j = entries[i].rows.findIndex((r) => dcKind(r.label) === k);
+        if (j >= 0) return [i, j];
+      }
+      return null;
+    };
+    const fills: { at: [number, number]; value: number }[] = [];
+    if (kind === "neutrophils") {
+      const lym = find("lymphocytes");
+      if (lym) fills.push({ at: lym, value: 90 - typed });
+    } else if (kind === "monocytes") {
+      const eos = find("eosinophils");
+      const baso = find("basophils");
+      if (eos) fills.push({ at: eos, value: 10 - typed });
+      if (baso) fills.push({ at: baso, value: 0 });
+    } else if (kind === "eosinophils") {
+      const mono = find("monocytes");
+      const baso = find("basophils");
+      const monoVal = mono ? entries[mono[0]].rows[mono[1]].value.trim() : "";
+      if (baso && monoVal !== "" && !Number.isNaN(Number(monoVal))) {
+        fills.push({ at: baso, value: 10 - Number(monoVal) - typed });
+      }
+    }
+    // Skip a fill that would go negative or into a locked (approved) test.
+    const valid = fills.filter((f) => f.value >= 0 && !entries[f.at[0]].locked);
+    if (valid.length === 0) return false;
+    setEntries((prev) => {
+      const next = structuredClone(prev);
+      // toFixed + Number trims float noise (e.g. 90 - 70.1 → 19.9, not 19.900000000000006).
+      for (const f of valid) next[f.at[0]].rows[f.at[1]].value = String(Number(f.value.toFixed(2)));
+      return next;
+    });
+    return true;
   }
 
   function setValue(ei: number, ri: number, value: string) {
@@ -189,6 +250,8 @@ export function ResultEntryForm({ visitId, initialEntries }: { visitId: string; 
                             key={ri}
                             row={row}
                             disabled={entry.locked}
+                            ei={ei}
+                            ri={ri}
                             onChange={(v) => setValue(ei, ri, v)}
                             indent={!oneLiner}
                             label={
@@ -226,15 +289,33 @@ export function ResultEntryForm({ visitId, initialEntries }: { visitId: string; 
 }
 
 /** One editable result row: Parameter | Result input | Unit | Reference | Flag. */
+type DcKind = "neutrophils" | "lymphocytes" | "monocytes" | "eosinophils" | "basophils";
+
+/** Which DC (differential count) parameter a row is, by its label; null if none. */
+function dcKind(label: string): DcKind | null {
+  const l = label.trim().toLowerCase();
+  if (l.startsWith("neutrophil")) return "neutrophils";
+  if (l.startsWith("lymphocyte")) return "lymphocytes";
+  if (l.startsWith("monocyte")) return "monocytes";
+  if (l.startsWith("eosinophil")) return "eosinophils";
+  if (l.startsWith("basophil")) return "basophils";
+  return null;
+}
+
 function ParamRow({
   row,
   disabled,
+  ei,
+  ri,
   onChange,
   label,
   indent,
 }: {
   row: RowDef;
   disabled: boolean;
+  /** Entry/row position, read back by the Enter handler for the DC autofill. */
+  ei: number;
+  ri: number;
   onChange: (value: string) => void;
   label: React.ReactNode;
   indent?: boolean;
@@ -265,6 +346,8 @@ function ParamRow({
             value={row.value}
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
+            data-ei={ei}
+            data-ri={ri}
             inputMode={row.resultType === "numeric" ? "decimal" : "text"}
             className={cn(
               "h-9 w-36",
